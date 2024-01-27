@@ -200,14 +200,14 @@ app.get("/api/EditUser", async (req, res) => {
   }
 });
 app.post("/api/SaveUserChanges", async (req, res) => {
-  data = req.body;
+  userData = req.body.userData;
   const userVerification = req.cookies
     ? await UserVerification(req.cookies.token)
     : { status: false };
   if (userVerification.status && userVerification.user.admin) {
     res.json({
       status: true,
-      data: await UpdateUser(data.userId, data.userData),
+      data: await UpdateUser(userData),
       admin: userVerification.user.admin,
     });
   } else {

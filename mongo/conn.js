@@ -1,4 +1,5 @@
 const { MongoClient, ObjectId, ServerApiVersion  } = require('mongodb');
+const { USER_DATA_KEYS } = require('./constant');
 require('dotenv').config();
 const { compare, hash } = require('bcryptjs');
 const dbName = "users";
@@ -50,7 +51,6 @@ async function Login(email, password) {
 
     if (user) {
       const passwordMatch = await compare(password, user.password);
-
       if (passwordMatch) {
         return { user, msg: "Connected successfully" };
       } else {
@@ -83,7 +83,19 @@ async function List() {
     const db = await Connect();
     const collection = db.collection(userCollectionName);
     const data = await collection.find().toArray();
-    return data;
+    if(!data){return {};}
+    const filteredData = data.map(({ _id,name, job, email, position, phoneNumber, hireDate, birthDate, admin }) => ({
+      _id,
+      name,
+      job,
+      email,
+      position,
+      phoneNumber,
+      hireDate,
+      birthDate,
+      admin
+    }));
+    return filteredData;
   } catch (err) {
     console.error(`Error finding users: ${err}`);
     throw err;
@@ -112,7 +124,17 @@ async function ListReg() {
     const collection = db.collection(registerCollectionName);
     const data = await collection.find().toArray();
     if(!data){return {};}
-    return data;
+    const filteredData = data.map(({ _id,name, job, email, position, phoneNumber, hireDate, birthDate }) => ({
+      _id,
+      name,
+      job,
+      email,
+      position,
+      phoneNumber,
+      hireDate,
+      birthDate
+    }));
+    return filteredData;
   } catch (err) {
     console.error(`Error finding users: ${err}`);
     throw err;
@@ -183,17 +205,15 @@ async function DeleteUser(id) {
 async function GetUserById(userId)
 {
   try {
-    console.log(userId);
     const db = await Connect();
     const collection = db.collection(userCollectionName);
     const user = await collection.findOne({ _id: new ObjectId(userId) });
     
     if (user) {
-      const keysToKeep = ['email', 'name', 'job', 'birthDate', 'phoneNumber', 'position', 'hireDate', 'admin'];
+      const keysToKeep = ['_id','email', 'name', 'job', 'birthDate', 'phoneNumber', 'position', 'hireDate', 'admin'];
     const ans = Object.fromEntries(
       Object.entries(user).filter(([key]) => keysToKeep.includes(key))
     );
-      console.log('Found user:', ans);
       return ans;
     } else {
       console.log('User not found');
@@ -203,18 +223,18 @@ async function GetUserById(userId)
     console.error(`Error finding user by ID: ${err}`);
   }
 }
-async function UpdateUser(userId, userData) {
+async function UpdateUser(userData) {
+  const userId = userData._id;
   try {
     client = new MongoClient(process.env.URI);
     await client.connect();
-    
     const db = client.db(dbName);
     const collection = db.collection(userCollectionName);
-
+    const { name, job, email, position, phoneNumber, hireDate, birthDate } = userData;
+    
     const result = await collection.updateOne(
       { _id: new ObjectId(userId) },
-      { $set: userData }
-    );
+      { $set: { name, job, email, position, phoneNumber, hireDate, birthDate } }    );
 
     if (result.modifiedCount === 1) {
       console.log(`User with ID ${userId} updated successfully.`);
