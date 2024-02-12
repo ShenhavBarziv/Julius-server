@@ -1,2 +1,7 @@
 node_modules
 .env
+//its still in js
+controllers
+middleware
+routes
+services

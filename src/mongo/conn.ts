@@ -1,15 +1,20 @@
-const { MongoClient, ObjectId, ServerApiVersion  } = require('mongodb');
-const { USER_DATA_KEYS } = require('./constant');
-require('dotenv').config();
-const { compare, hash } = require('bcryptjs');
-const dbName = "users";
-const registerCollectionName = "register";
-const userCollectionName = "users";
+import { MongoClient, ObjectId } from 'mongodb';
+import { compare, hash } from 'bcryptjs';
+import { Request, Response } from 'express';
+import { USER_DATA_KEYS } from './constant';
+import dotenv from 'dotenv';
+import { UserType } from '../types';
+
+dotenv.config();
+
+const dbName: string = "users";
+const registerCollectionName: string = "register";
+const userCollectionName: string = "users";
 
 async function Connect() {
-  const client = new MongoClient(process.env.URI, {
+  const client = new MongoClient(process.env.URI!, {
     serverApi: {
-      version: ServerApiVersion.v1,
+      version: "1",
       strict: true,
       deprecationErrors: true,
     }
@@ -18,9 +23,19 @@ async function Connect() {
   return client.db(dbName);
 }
 
+interface User {
+  email: string;
+  password: string;
+  admin: boolean;
+  name: string;
+  job: string;
+  position: string;
+  phoneNumber: string;
+  hireDate: string;
+  birthDate: string;
+}
 
-
-async function AddRegister(user) {
+async function AddRegister(user: User): Promise<number> {
   try {
     const db = await Connect();
     const registerCollection = db.collection(registerCollectionName);
@@ -31,9 +46,8 @@ async function AddRegister(user) {
       return 409; // Conflict status code
     }
     user.admin = false;
-    const collection = db.collection(registerCollectionName);
-    user.password = await hash(user.password, 10)
-    await collection.insertOne(user);
+    user.password = await hash(user.password, 10);
+    await registerCollection.insertOne(user);
     console.log(`${user.name} inserted successfully.\n`);
     return 201; // Successfully inserted status code
   } catch (err) {
@@ -42,17 +56,17 @@ async function AddRegister(user) {
   }
 }
 
-async function Login(email, password) {
+async function Login(email: string, password: string): Promise<{ user: UserType; msg: string } | { msg: string }> {
   try {
     const db = await Connect();
     let collection = db.collection(userCollectionName);
-    
+
     let user = await collection.findOne({ email });
 
     if (user) {
       const passwordMatch = await compare(password, user.password);
       if (passwordMatch) {
-        return { user, msg: "Connected successfully" };
+        return { user, msg: "Connected successfully" } as { user: UserType, msg: string };
       } else {
         return { msg: "Email or password are incorrect" };
       }
@@ -78,13 +92,14 @@ async function Login(email, password) {
   }
 }
 
-async function List() {
+
+async function List(): Promise<UserType[] | { msg: string }> {
   try {
     const db = await Connect();
     const collection = db.collection(userCollectionName);
     const data = await collection.find().toArray();
-    if(!data){return {};}
-    const filteredData = data.map(({ _id,name, job, email, position, phoneNumber, hireDate, birthDate, admin }) => ({
+    if (!data) { return []; }
+    const filteredData = data.map(({ _id, name, job, email, position, phoneNumber, hireDate, birthDate, admin }) => ({
       _id,
       name,
       job,
@@ -98,33 +113,16 @@ async function List() {
     return filteredData;
   } catch (err) {
     console.error(`Error finding users: ${err}`);
-    throw err;
+    throw new Error("An error occurred while fetching user data");
   }
 }
-/*
-async function GetUserByEmail(email) {
-  try {
-    const db = await Connect();
-    const collection = db.collection(userCollectionName);
-    const user = await collection.findOne({ email });
-    const keysToKeep = ['email', 'name', 'job', 'birthDate', 'phoneNumber', 'position', 'hireDate'];
-    const ans = Object.fromEntries(
-      Object.entries(user).filter(([key]) => keysToKeep.includes(key))
-    );
-    return ans;
-  } catch (err) {
-    console.error(`Error finding user by email: ${err}`);
-    throw err;
-  }
-}
-*/
-async function ListReg() {
+async function ListReg(): Promise<UserType[] | { msg: string }> {
   try {
     const db = await Connect();
     const collection = db.collection(registerCollectionName);
     const data = await collection.find().toArray();
-    if(!data){return {};}
-    const filteredData = data.map(({ _id,name, job, email, position, phoneNumber, hireDate, birthDate }) => ({
+    if (!data) { return []; }
+    const filteredData = data.map(({ _id, name, job, email, position, phoneNumber, hireDate, birthDate }) => ({
       _id,
       name,
       job,
@@ -137,10 +135,11 @@ async function ListReg() {
     return filteredData;
   } catch (err) {
     console.error(`Error finding users: ${err}`);
-    throw err;
+    return { msg: "An error occurred while fetching user data" };
   }
 }
-async function DeleteReg(id) {
+
+async function DeleteReg(id: string): Promise<{ status: number, msg: string }> {
   try {
     const db = await Connect();
     const collection = db.collection(registerCollectionName);
@@ -148,43 +147,41 @@ async function DeleteReg(id) {
 
     if (result.deletedCount === 1) {
       console.log(`User with id ${id} deleted successfully from the register collection.`);
-      return {status:200}; // Success status code
+      return { status: 200, msg: `User with id ${id} deleted successfully from the register collection.` };
     } else {
-      return {status:404}; // Not Found status code
+      return { status: 404, msg: `User with id ${id} not found in the register collection.` };
     }
   } catch (err) {
     console.error(`Error deleting user from register collection: ${err}`);
-    return {status:500};
+    return { status: 500, msg: `Error deleting user from register collection: ${err}` };
   }
 }
 
-async function ApproveReg(id) {
+async function ApproveReg(id: string): Promise<{ status: number, msg: string }> {
   try {
     const db = await Connect();
     const registerCollection = db.collection(registerCollectionName);
     const userCollection = db.collection(userCollectionName);
 
-    // Find the user to be approved in the register collection
     const userToApprove = await registerCollection.findOne({ _id: new ObjectId(id) });
 
     if (userToApprove) {
-      // Insert the user into the user collection
       await userCollection.insertOne(userToApprove);
-      // Delete the user from the register collection
       await registerCollection.deleteOne({ _id: new ObjectId(id) });
 
       console.log(`User with id ${id} approved and moved to the users collection.`);
-      return { status: 200 }; // Success status code
+      return { status: 200, msg: `User with id ${id} approved and moved to the users collection.` };
     } else {
       console.log(`User with id ${id} not found in the register collection.`);
-      return { status: 404 }; // Not Found status code
+      return { status: 404, msg: `User with id ${id} not found in the register collection.` };
     }
   } catch (err) {
     console.error(`Error approving user in register collection: ${err}`);
-    return { status: 500 }; // Internal Server Error status code
+    return { status: 500, msg: `Error approving user in register collection: ${err}` };
   }
 }
-async function DeleteUser(id) {
+
+async function DeleteUser(id: string): Promise<{ status: number, msg: string }> {
   try {
     const db = await Connect();
     const collection = db.collection(userCollectionName);
@@ -192,63 +189,60 @@ async function DeleteUser(id) {
 
     if (result.deletedCount === 1) {
       console.log(`User with id ${id} deleted successfully from the user collection.`);
-      return {status:200};
+      return { status: 200, msg: `User with id ${id} deleted successfully from the user collection.` };
     } else {
       console.log(`User with id ${id} not found in the user collection.`);
-      return {status:404};
+      return { status: 404, msg: `User with id ${id} not found in the user collection.` };
     }
   } catch (err) {
     console.error(`Error deleting user from user collection: ${err}`);
-    return {status:500};
+    return { status: 500, msg: `Error deleting user from user collection: ${err}` };
   }
 }
-async function GetUserById(userId)
-{
+
+async function GetUserById(userId: string): Promise<UserType | { msg: string }> {
   try {
     const db = await Connect();
     const collection = db.collection(userCollectionName);
     const user = await collection.findOne({ _id: new ObjectId(userId) });
-    
+
     if (user) {
-      const keysToKeep = ['_id','email', 'name', 'job', 'birthDate', 'phoneNumber', 'position', 'hireDate', 'admin'];
-    const ans = Object.fromEntries(
-      Object.entries(user).filter(([key]) => keysToKeep.includes(key))
-    );
-      return ans;
+      return user as UserType;
     } else {
       console.log('User not found');
-      return {};
+      return { msg: 'User not found' };
     }
   } catch (err) {
     console.error(`Error finding user by ID: ${err}`);
+    return { msg: `Error finding user by ID: ${err}` };
   }
 }
-async function UpdateUser(userData) {
+
+async function UpdateUser(userData: UserType): Promise<{ status: number, msg: string }> {
   const userId = userData._id;
   try {
-    client = new MongoClient(process.env.URI);
-    await client.connect();
-    const db = client.db(dbName);
+    const db = await Connect();
     const collection = db.collection(userCollectionName);
     const { name, job, email, position, phoneNumber, hireDate, birthDate } = userData;
-    
+
     const result = await collection.updateOne(
       { _id: new ObjectId(userId) },
-      { $set: { name, job, email, position, phoneNumber, hireDate, birthDate } }    );
+      { $set: { name, job, email, position, phoneNumber, hireDate, birthDate } }
+    );
 
     if (result.modifiedCount === 1) {
       console.log(`User with ID ${userId} updated successfully.`);
-      return { code: 200, msg: 'User updated successfully' };
+      return { status: 200, msg: `User with ID ${userId} updated successfully.` };
     } else {
       console.log(`User with ID ${userId} not found.`);
-      return { code: 404, msg: 'User not found' };
+      return { status: 404, msg: `User with ID ${userId} not found.` };
     }
   } catch (error) {
     console.error(`Error updating user: ${error}`);
-    return { code: 500, msg: 'Error' };
-  } finally {
-    await client.close();
+    return { status: 500, msg: `Error updating user: ${error}` };
   }
 }
 
-module.exports = { AddRegister, Login, List, ListReg, DeleteReg, ApproveReg, DeleteUser, GetUserById, UpdateUser };
+
+export { AddRegister, Login, List, ListReg, DeleteReg, ApproveReg, DeleteUser, GetUserById, UpdateUser };
+
