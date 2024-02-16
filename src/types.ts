@@ -1,36 +1,70 @@
 // types.ts
 import { ObjectId } from 'mongodb';
 
-interface UserType {
-    _id?: ObjectId;
-    email: string;
-    password?: string;
-    name: string;
-    job: string;
-    birthDate: string;
-    phoneNumber: string;
-    position: string;
-    hireDate: string;
-    admin?: boolean;
+export type UserType = {
+    _id: ObjectId,
+    email: string,
+    password: string,
+    admin: boolean,
+    name: string,
+    job: string,
+    position: string,
+    phoneNumber: string,
+    hireDate: string,
+    birthDate: string,
 }
 
-interface UserVerificationType {
+export type UserTypeWithoutAdminAndId = {
+    email: string,
+    password: string,
+    name: string,
+    job: string,
+    position: string,
+    phoneNumber: string,
+    hireDate: string,
+    birthDate: string,
+}
+
+export type UserTypeWithoutPassword = {
+    _id: ObjectId,
+    email: string,
+    password: string,
+    admin: boolean,
+    name: string,
+    job: string,
+    position: string,
+    phoneNumber: string,
+    hireDate: string,
+    birthDate: string
+}
+
+export type UserTypeWithoutAdminAndPassword = {
+    _id: ObjectId,
+    email: string,
+    password: string,
+    admin: boolean,
+    name: string,
+    job: string,
+    position: string,
+    phoneNumber: string,
+    hireDate: string,
+    birthDate: string,
+}
+
+export interface UserVerificationType {
     status: boolean;
     user?: UserType;
 }
 
-interface LoginResponseType {
+export interface LoginResponseType {
     user?: UserType;
     msg: string;
 }
 
-interface ApiResponseType {
+export interface ApiResponseType {
     status?: boolean | string;
     data?: UserType[] | UserType;
     admin?: boolean;
     code?: number;
     msg?: string;
 }
-
-export { UserType, UserVerificationType, LoginResponseType, ApiResponseType };
-

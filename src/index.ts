@@ -5,8 +5,12 @@ import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import { AddRegister, Login, List, ListReg, DeleteReg, ApproveReg, DeleteUser, GetUserById, UpdateUser } from './mongo/conn';
-import { UserType } from './types'; // Importing UserType from types.ts
-
+import {
+  UserType,
+  UserTypeWithoutAdminAndId,
+  UserTypeWithoutPassword,
+  UserTypeWithoutAdminAndPassword,
+} from './types';
 dotenv.config();
 
 const app = express();
@@ -27,7 +31,7 @@ app.use(bodyParser.json());
 
 const disallowedTags: string[] = ['script', 'iframe', 'style'];
 
-function validateInput(user: UserType): boolean {
+function validateInput(user: UserTypeWithoutAdminAndId | { email: string, password: string }): boolean {
   for (const [key, value] of Object.entries(user)) {
     for (const tag of disallowedTags) {
       if (
@@ -55,8 +59,8 @@ async function UserVerification(token: string | undefined) {
     return { status: false };
   }
   try {
-    const data: any = await jwt.verify(token, process.env.TOKEN_KEY!);
-    const user = await GetUserById(data.id);
+    const data: any = jwt.verify(token, process.env.TOKEN_KEY!);
+    const user = await GetUserById(data._id);
     if (Object.keys(user).length > 0) {
       return { status: true, user: user };
     } else {
@@ -67,14 +71,11 @@ async function UserVerification(token: string | undefined) {
   }
 }
 
-app.get('/api', (req: Request, res: Response) => {
-  res.send('hiiiiiii');
-});
-
 app.post('/api/login', async (req: Request, res: Response) => {
   const { email, password } = req.body;
   if (validateInput(req.body)) {
-    const data = await Login(email, password);
+    const data = (await Login(email, password)) as { user: UserTypeWithoutPassword; msg: string } | { msg: string };
+    console.log(data)
     if ('user' in data && data.user._id) {
       const token = createSecretToken(data.user._id.toHexString());
       res.cookie('token', token, {
@@ -96,7 +97,7 @@ app.post('/api/login', async (req: Request, res: Response) => {
 });
 
 app.post('/api/register', async (req: Request, res: Response) => {
-  const user: any = req.body;
+  const user: UserTypeWithoutAdminAndId = req.body;
   if (validateInput(req.body)) {
     const code: number = await AddRegister(user);
     if (code === 201) {
@@ -111,7 +112,9 @@ app.post('/api/register', async (req: Request, res: Response) => {
     res.json({ code: 400, msg: 'One of the inputs is invalid' });
   }
 });
-
+app.get('/api/verification', async (req: Request, res: Response) => {
+  res.json(UserVerification(req.cookies.token))
+})
 app.get('/api/list', async (req: Request, res: Response) => {
   const userVerification: any = req.cookies
     ? await UserVerification(req.cookies.token)

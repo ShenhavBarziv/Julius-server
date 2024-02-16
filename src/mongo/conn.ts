@@ -3,7 +3,12 @@ import { compare, hash } from 'bcryptjs';
 import { Request, Response } from 'express';
 import { USER_DATA_KEYS } from './constant';
 import dotenv from 'dotenv';
-import { UserType } from '../types';
+import {
+  UserType,
+  UserTypeWithoutAdminAndId,
+  UserTypeWithoutPassword,
+  UserTypeWithoutAdminAndPassword,
+} from '../types';
 
 dotenv.config();
 
@@ -22,30 +27,16 @@ async function Connect() {
   await client.connect();
   return client.db(dbName);
 }
-
-interface User {
-  email: string;
-  password: string;
-  admin: boolean;
-  name: string;
-  job: string;
-  position: string;
-  phoneNumber: string;
-  hireDate: string;
-  birthDate: string;
-}
-
-async function AddRegister(user: User): Promise<number> {
+async function AddRegister(user: UserTypeWithoutAdminAndId): Promise<number> {
   try {
     const db = await Connect();
     const registerCollection = db.collection(registerCollectionName);
     const existingUser = await registerCollection.findOne({ email: user.email });
-
+    if ('admin' in user) { throw new Error("admin field is not in the signup page"); }
     if (existingUser) {
       console.log(`User with email ${user.email} already exists in the register collection.`);
       return 409; // Conflict status code
     }
-    user.admin = false;
     user.password = await hash(user.password, 10);
     await registerCollection.insertOne(user);
     console.log(`${user.name} inserted successfully.\n`);
@@ -56,17 +47,17 @@ async function AddRegister(user: User): Promise<number> {
   }
 }
 
-async function Login(email: string, password: string): Promise<{ user: UserType; msg: string } | { msg: string }> {
+async function Login(email: string, password: string): Promise<{ user: UserTypeWithoutPassword; msg: string } | { msg: string }> {
   try {
     const db = await Connect();
     let collection = db.collection(userCollectionName);
 
-    let user = await collection.findOne({ email });
-
+    let user = (await collection.findOne({ email })) as UserType | null;
     if (user) {
       const passwordMatch = await compare(password, user.password);
       if (passwordMatch) {
-        return { user, msg: "Connected successfully" } as { user: UserType, msg: string };
+        const { password, ...userDataWithoutPassword } = user;
+        return { user: userDataWithoutPassword, msg: "Connected successfully" } as { user: UserTypeWithoutPassword, msg: string };
       } else {
         return { msg: "Email or password are incorrect" };
       }
@@ -74,7 +65,7 @@ async function Login(email: string, password: string): Promise<{ user: UserType;
 
     // No user found in the first collection, checking the second collection
     collection = db.collection(registerCollectionName);
-    user = await collection.findOne({ email });
+    user = (await collection.findOne({ email })) as UserType | null;
 
     if (user) {
       const passwordMatch = await compare(password, user.password);
@@ -92,14 +83,14 @@ async function Login(email: string, password: string): Promise<{ user: UserType;
   }
 }
 
-
-async function List(): Promise<UserType[] | { msg: string }> {
+async function List(): Promise<UserTypeWithoutPassword[] | []> {
   try {
     const db = await Connect();
     const collection = db.collection(userCollectionName);
-    const data = await collection.find().toArray();
-    if (!data) { return []; }
-    const filteredData = data.map(({ _id, name, job, email, position, phoneNumber, hireDate, birthDate, admin }) => ({
+    const data = (await collection.find().toArray()) as UserType[] | [];
+    if (!data || data.length === 0) { return []; }
+
+    const filteredData: UserTypeWithoutPassword[] = data.map(({ _id, name, job, email, position, phoneNumber, hireDate, birthDate, admin }) => ({
       _id,
       name,
       job,
@@ -109,20 +100,21 @@ async function List(): Promise<UserType[] | { msg: string }> {
       hireDate,
       birthDate,
       admin
-    }));
+    })) as UserTypeWithoutPassword[];
     return filteredData;
   } catch (err) {
     console.error(`Error finding users: ${err}`);
     throw new Error("An error occurred while fetching user data");
   }
 }
-async function ListReg(): Promise<UserType[] | { msg: string }> {
+
+async function ListReg(): Promise<UserTypeWithoutAdminAndPassword[] | { msg: string }> {
   try {
     const db = await Connect();
     const collection = db.collection(registerCollectionName);
-    const data = await collection.find().toArray();
+    const data = (await collection.find().toArray()) as UserType[] | [];
     if (!data) { return []; }
-    const filteredData = data.map(({ _id, name, job, email, position, phoneNumber, hireDate, birthDate }) => ({
+    const filteredData: UserTypeWithoutAdminAndPassword[] = data.map(({ _id, name, job, email, position, phoneNumber, hireDate, birthDate, admin }) => ({
       _id,
       name,
       job,
@@ -130,8 +122,8 @@ async function ListReg(): Promise<UserType[] | { msg: string }> {
       position,
       phoneNumber,
       hireDate,
-      birthDate
-    }));
+      birthDate,
+    })) as UserTypeWithoutAdminAndPassword[];
     return filteredData;
   } catch (err) {
     console.error(`Error finding users: ${err}`);
@@ -200,14 +192,14 @@ async function DeleteUser(id: string): Promise<{ status: number, msg: string }> 
   }
 }
 
-async function GetUserById(userId: string): Promise<UserType | { msg: string }> {
+async function GetUserById(userId: ObjectId): Promise<UserTypeWithoutPassword | { msg: string }> {
   try {
     const db = await Connect();
     const collection = db.collection(userCollectionName);
-    const user = await collection.findOne({ _id: new ObjectId(userId) });
-
+    const user = (await collection.findOne({ _id: new ObjectId(userId) })) as UserType | null;
     if (user) {
-      return user as UserType;
+      const { password, ...userDataWithoutPassword } = user;
+      return userDataWithoutPassword as UserTypeWithoutPassword;
     } else {
       console.log('User not found');
       return { msg: 'User not found' };
