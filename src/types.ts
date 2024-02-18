@@ -28,7 +28,6 @@ export type UserTypeWithoutAdminAndId = {
 export type UserTypeWithoutPassword = {
     _id: ObjectId,
     email: string,
-    password: string,
     admin: boolean,
     name: string,
     job: string,
