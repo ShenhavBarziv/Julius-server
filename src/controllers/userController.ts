@@ -48,26 +48,3 @@ export async function getUserById(req: Request, res: Response): Promise<void> {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 }
-
-export async function updateUser(req: Request, res: Response): Promise<void> {
-  try {
-    const { id } = req.params;
-    const userData = req.body;
-    const statusCode = await userService.UpdateUser(userData);
-    res.json({ message: 'User updated successfully' });
-  } catch (error) {
-    console.error('Error updating user:', error);
-    res.json({ message: 'Internal Server Error' });
-  }
-}
-
-export async function deleteUser(req: Request, res: Response): Promise<void> {
-  try {
-    const { id } = req.params;
-    const statusCode = await userService.DeleteUser(id);
-    res.json({ message: 'User deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting user:', error);
-    res.json({ message: 'Internal Server Error' });
-  }
-}

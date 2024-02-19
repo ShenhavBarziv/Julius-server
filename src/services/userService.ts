@@ -1,5 +1,5 @@
 import { MongoClient, ObjectId } from 'mongodb';
-import { compare, hash } from 'bcryptjs';
+import { hash } from 'bcryptjs';
 import { UserType, UserTypeWithoutAdminAndId, UserTypeWithoutPassword } from '../types';
 import dotenv from 'dotenv';
 dotenv.config();
@@ -125,7 +125,7 @@ async function getAllRegisteredUsers(): Promise<UserTypeWithoutPassword[]> {
     throw new Error("An error occurred while fetching user data");
   }
 }
-async function UpdateUser(userData: any): Promise<{ status: number, msg: string }> {
+async function UpdateUser(userData: UserTypeWithoutPassword): Promise<{ status: number, msg: string }> {
   const userId = userData._id;
   try {
     const { db, closeConnection } = await Connect();
