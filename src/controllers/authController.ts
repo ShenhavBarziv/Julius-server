@@ -6,16 +6,14 @@ export async function Login(req: Request, res: Response) {
   const { token, ...result } = await authService.login(email, password);
   if (token) {
     res.cookie('token', token, {
-      httpOnly: false,
-      sameSite: 'none',
+      httpOnly: true,
+      sameSite: 'strict',
       secure: false,
     });
   }
-  res.cookie('email', req.body.email, {
-    httpOnly: false,
-    sameSite: 'none',
-    secure: false,
-  });
   res.json(result);
 }
-
+export async function Logout(rq: Request, res: Response) {
+  res.cookie('token', '', { expires: new Date(0) });
+  res.end()
+}

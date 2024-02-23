@@ -49,21 +49,3 @@ export type UserTypeWithoutAdminAndPassword = {
     hireDate: string,
     birthDate: string,
 }
-
-export interface UserVerificationType {
-    status: boolean;
-    user?: UserType;
-}
-
-export interface LoginResponseType {
-    user?: UserType;
-    msg: string;
-}
-
-export interface ApiResponseType {
-    status?: boolean | string;
-    data?: UserType[] | UserType;
-    admin?: boolean;
-    code?: number;
-    msg?: string;
-}

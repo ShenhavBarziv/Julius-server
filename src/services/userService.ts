@@ -2,6 +2,8 @@ import { MongoClient, ObjectId } from 'mongodb';
 import { hash } from 'bcryptjs';
 import { UserType, UserTypeWithoutAdminAndId, UserTypeWithoutPassword } from '../types';
 import dotenv from 'dotenv';
+import { compare } from 'bcryptjs';
+import * as jwtService from './jwtService';
 dotenv.config();
 
 const dbName: string = "users";
@@ -27,18 +29,22 @@ async function Connect() {
 }
 
 
-async function AddRegister(user: UserTypeWithoutAdminAndId): Promise<number> {
+async function AddRegister(user: Partial<UserType>): Promise<number> {
   try {
     const { db, closeConnection } = await Connect();
     const registerCollection = db.collection(registerCollectionName);
     const existingUser = await registerCollection.findOne({ email: user.email });
-    if ('admin' in user) { throw new Error("admin field is not in the signup page"); }
     if (existingUser) {
       console.log(`User with email ${user.email} already exists in the register collection.`);
       await closeConnection();
       return 409; // Conflict status code
     }
+    if (!user.password) {
+      console.error("Error: Password is missing.");
+      return 400; // Bad Request status code
+    }
     user.password = await hash(user.password, 10);
+    user.admin = false;
     await registerCollection.insertOne(user);
     console.log(`${user.name} inserted successfully.\n`);
     await closeConnection();
@@ -48,6 +54,40 @@ async function AddRegister(user: UserTypeWithoutAdminAndId): Promise<number> {
     return 500; // Internal Server Error status code
   }
 }
+async function login(emailInput: string, passwordInput: string): Promise<{ success: boolean, token?: string, user?: UserTypeWithoutPassword, message?: string }> {
+  try {
+    const { db, closeConnection } = await Connect();
+    const usersCollection = db.collection(userCollectionName);
+
+    const userFromUsersCollection = await usersCollection.findOne({ email: emailInput }) as UserType;
+
+    if (userFromUsersCollection) {
+      const { password, ...userWithoutPassword } = userFromUsersCollection;
+      if (await compare(passwordInput, password)) {
+        const token = jwtService.createToken(userFromUsersCollection._id);
+        await closeConnection();
+        return { success: true, token, user: userWithoutPassword as UserTypeWithoutPassword };
+      } else {
+        return { success: false, message: 'Incorrect credentials' };
+      }
+    } else {
+      const registerCollection = db.collection(registerCollectionName);
+      const userFromRegisterCollection = await registerCollection.findOne({ email: emailInput }) as UserType;
+
+      if (userFromRegisterCollection) {
+        await closeConnection();
+        return { success: false, message: 'Your user is not approved. Please contact your supervisor' };
+      } else {
+        await closeConnection();
+        return { success: false, message: 'Incorrect credentials' };
+      }
+    }
+  } catch (error) {
+    console.error('Error during login:', error);
+    throw new Error('An error occurred during login');
+  }
+}
+
 
 async function getAllUsers(): Promise<UserTypeWithoutPassword[]> {
   try {
@@ -192,5 +232,5 @@ async function ApproveReg(id: string): Promise<{ status: number }> {
   }
 }
 
-export { AddRegister, getAllUsers, DeleteUser, GetUserById, UpdateUser, getUserByEmail, getAllRegisteredUsers, DeleteReg, ApproveReg };
+export { AddRegister, login, getAllUsers, DeleteUser, GetUserById, UpdateUser, getUserByEmail, getAllRegisteredUsers, DeleteReg, ApproveReg };
 
